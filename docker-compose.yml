@@ -1,0 +1,115 @@
+name: app-ads-worker
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-appads}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-appads}
+      POSTGRES_DB: ${DB_NAME:-appads}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-appads} -d ${DB_NAME:-appads}']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - '${PGADMIN_PORT:-5050}:80'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  minio:
+    image: minio/minio:latest
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - '${S3_PORT:-9000}:9000'
+      - '${S3_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  # Разовая инициализация: бакет для сырых файлов + lifecycle 90 дней.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin} &&
+        mc mb -p local/${S3_BUCKET_RAW:-app-ads-raw} &&
+        mc ilm rule add local/${S3_BUCKET_RAW:-app-ads-raw} --expire-days 90 || true
+    restart: 'no'
+
+  worker:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-appads}
+      DB_PASSWORD: ${DB_PASSWORD:-appads}
+      DB_NAME: ${DB_NAME:-appads}
+      APP_ADS_AUTO_MIGRATE: 'true'
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-minioadmin}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-minioadmin}
+      S3_BUCKET_RAW: ${S3_BUCKET_RAW:-app-ads-raw}
+      S3_FORCE_PATH_STYLE: 'true'
+      APP_ADS_ENABLE_DEV_SCHEDULER: 'true'
+      APP_ADS_DEV_SEED: 'true'
+      APP_ADS_DEV_SCHEDULER_INTERVAL_MS: '120000'
+      APP_ADS_PARTITION_MAINTENANCE: 'true'
+      APP_ADS_MOCK_DOMAIN: ${APP_ADS_MOCK_DOMAIN:-http://localhost:3333/app-ads.txt}
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  pgadmin_data:
