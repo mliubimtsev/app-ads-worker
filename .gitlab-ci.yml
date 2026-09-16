@@ -1,17 +1,20 @@
 stages:
-  - build
   - test
+  - build
   - deploy
+
+test-job:
+  stage: test
+  image: node:20-alpine
+  script:
+    - npm install
+    - npm test
+    - npm run test:integration
 
 build-job:
   stage: build
   script:
     - docker build -t app-ads-worker .
-
-test-job:
-  stage: test
-  script:
-    - docker run --rm app-ads-worker npm test
 
 deploy-job:
   stage: deploy
