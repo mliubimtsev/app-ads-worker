@@ -51,6 +51,7 @@ services:
       SCALITY_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-verySecretKey1}
       S3BACKEND: file
       REMOTE_MANAGEMENT_DISABLE: 1
+      ENDPOINT: s3server
     ports:
       - '${S3_PORT:-9000}:8000'
     volumes:
@@ -62,7 +63,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "require('http').get('http://127.0.0.1:8000',()=>process.exit(0)).on('error',()=>process.exit(1))",
+          "require('net').connect(8000,'127.0.0.1').on('connect',function(){this.end();process.exit(0)}).on('error',()=>process.exit(1))",
         ]
       interval: 5s
       timeout: 5s
