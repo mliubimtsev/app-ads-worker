@@ -16,8 +16,8 @@
   через `AbortSignal.timeout`.
 - **`bottleneck`** - троттлинг запросов по хосту, чтобы не забанили за
   параллельные обращения к одному и тому же домену.
-- **`@aws-sdk/client-s3`** - выгрузка (только `PUT`) сырых файлов в S3/MinIO,
-  gzip, ключ по хэшу содержимого.
+- **`@aws-sdk/client-s3`** - выгрузка (только `PUT`) сырых файлов в S3
+  (Zenko CloudServer локально), gzip, ключ по хэшу содержимого.
 - **`nestjs-pino`** - структурные JSON-логи вместо `console.*`.
 - **`zod`** - валидация всего окружения при старте (`src/config/env.schema.ts`);
   если конфиг невалиден, приложение падает сразу.
@@ -40,7 +40,7 @@ AppAdsConsumer (BullMQ, @Processor) → DomainPipelineService.runBatch:
      |- 200, хэш совпал .. domain_content_version.last_seen_at, без мержа
      |- 200, новый хэш:
           парсит содержимое (app-ads-parser.ts)
-          gzip → PUT в S3/MinIO (ДО транзакции с БД)
+          gzip → PUT в S3 (ДО транзакции с БД)
           ОДНА транзакция:
             COPY распарсенных строк в UNLOGGED stage_app_ads
             → merge.sql: FULL OUTER JOIN стейджа с активными app_ads_entries
@@ -96,16 +96,16 @@ src/
 docker compose up --build
 ```
 
-Поднимутся PostgreSQL, Redis, MinIO (плюс pgAdmin и разовая инициализация
-бакета) и сам воркер. У воркера в этом compose-файле выставлены
-`APP_ADS_AUTO_MIGRATE=true`, `APP_ADS_ENABLE_DEV_SCHEDULER=true`,
-`APP_ADS_DEV_SEED=true` - то есть он сам прогонит миграцию, засеет `domain`
-небольшим набором доменов из `src/schedule/seed-domains.ts` и раз в 2 минуты
+Поднимутся PostgreSQL, Redis, S3-совместимое хранилище (плюс pgAdmin) и сам
+воркер. У воркера в этом compose-файле выставлены `APP_ADS_AUTO_MIGRATE=true`,
+`APP_ADS_ENABLE_DEV_SCHEDULER=true`, `APP_ADS_DEV_SEED=true` - то есть он сам
+прогонит миграцию, засеет `domain` небольшим набором доменов из
+`src/schedule/seed-domains.ts` и раз в 2 минуты
 (`APP_ADS_DEV_SCHEDULER_INTERVAL_MS`) будет подбирать «созревшие» домены и
-ставить их в очередь на скрапинг.
+ставить их в очередь на скрапинг. Бакет для сырых файлов создаётся сам при
+старте воркера, отдельного init-шага не нужно.
 
-Логи: `docker compose logs -f worker`. Консоль MinIO: `http://localhost:9001`
-(`minioadmin` / `minioadmin`). pgAdmin: `http://localhost:5050`.
+Логи: `docker compose logs -f worker`. pgAdmin: `http://localhost:5050`.
 
 ## Локальная разработка без контейнера воркера
 
@@ -152,7 +152,7 @@ npm run infra:up | infra:down | infra:reset
 
 - `DB_*`, `APP_ADS_AUTO_MIGRATE` - PostgreSQL и прогон миграций при старте.
 - `REDIS_*` - подключение BullMQ.
-- `S3_*` - endpoint/креды/бакет MinIO для выгрузки сырых файлов.
+- `S3_*` - endpoint/креды/бакет S3-совместимого хранилища для выгрузки сырых файлов.
 - `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` - если заданы, `undici`
   автоматически переключается на `EnvHttpProxyAgent`; если нет - обычный
   прямой `Agent`. Отдельного SOCKS5-клиента пока нет.

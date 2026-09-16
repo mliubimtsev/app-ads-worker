@@ -72,5 +72,5 @@ export async function checkReadiness(cfg: AppConfig): Promise<void> {
 
   await waitFor('PostgreSQL', deadline, () => checkPostgres(cfg));
   await waitFor('Redis', deadline, () => checkRedis(cfg));
-  await waitFor('S3/MinIO', deadline, () => checkS3(cfg));
+  await waitFor('S3', deadline, () => checkS3(cfg));
 }

@@ -31,8 +31,8 @@ export const envSchema = z.object({
 
   S3_ENDPOINT: z.string().url().default('http://localhost:9000'),
   S3_REGION: z.string().min(1).default('us-east-1'),
-  S3_ACCESS_KEY: z.string().min(1).default('minioadmin'),
-  S3_SECRET_KEY: z.string().min(1).default('minioadmin'),
+  S3_ACCESS_KEY: z.string().min(1).default('accessKey1'),
+  S3_SECRET_KEY: z.string().min(1).default('verySecretKey1'),
   S3_BUCKET_RAW: z.string().min(1).default('app-ads-raw'),
   S3_FORCE_PATH_STYLE: zBool(true),
 
