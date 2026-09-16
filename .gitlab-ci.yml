@@ -18,4 +18,5 @@ build-job:
 deploy-job:
   stage: deploy
   script:
+    - echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USER" --password-stdin
     - docker compose up -d
