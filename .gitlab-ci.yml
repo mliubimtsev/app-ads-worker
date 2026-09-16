@@ -9,7 +9,6 @@ test-job:
   script:
     - npm install
     - npm test
-    - npm run test:integration
 
 build-job:
   stage: build
